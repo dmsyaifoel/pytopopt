@@ -1,3 +1,7 @@
+'''
+Highly optimized topopt python code using numpy magic. Comes at a significant cost to readability.
+'''
+
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.sparse import coo_array
