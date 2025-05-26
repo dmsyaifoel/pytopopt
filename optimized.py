@@ -172,7 +172,7 @@ def plot(x):
     plt.axis('off')
     plt.show()
 
-def topopt(nelx, nely, fixed_dofs, forces, volfrac, plot_every=5, E=1, nu=.3, p=3, tol=.01, maxloops=100):
+def topopt(nelx, nely, fixed_dofs, forces, volfrac, E=1, nu=.3, p=3, tol=.01, maxloops=100):
     '''
     Perform minimum compliance topology optimization on a (nelx, nely) grid.
 
@@ -181,7 +181,6 @@ def topopt(nelx, nely, fixed_dofs, forces, volfrac, plot_every=5, E=1, nu=.3, p=
     - fixed_dofs: List of global degrees of freedom (DOFs) that are fixed (boundary conditions).
     - forces: List of (dof, magnitude) tuples representing applied forces.
     - volfrac: Target volume fraction (percentage of material in the design domain).
-    - plot_every: How often to plot the design (in iterations).
     - E: Young's modulus of the material.
     - nu: Poisson's ratio of the material.
     - p: SIMP penalization factor (controls how intermediate densities are penalized).
@@ -248,9 +247,6 @@ def topopt(nelx, nely, fixed_dofs, forces, volfrac, plot_every=5, E=1, nu=.3, p=
         vol = np.sum(x)/(nelx*nely) # Current volume fraction
         print(f'{i = } {c = :3.3} {vol = :3.3} {dx = :3.3}')
 
-        # Plot the current design periodically
-        if i % plot_every == 0:
-            plot(x)
 
         # Stop if the change in density is below tolerance
         if dx < tol:
@@ -264,8 +260,8 @@ def topopt(nelx, nely, fixed_dofs, forces, volfrac, plot_every=5, E=1, nu=.3, p=
     return x
 
 # --- Example Usage (from original notebook) ---
-nelx = 200
-nely = 100
+nelx = 40
+nely = 30
 volfrac = .3
 
 # Define fixed degrees of freedom (boundary conditions)

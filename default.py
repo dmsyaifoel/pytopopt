@@ -151,7 +151,7 @@ def plot(x):
   plt.axis('off')
   plt.show()
 
-def topopt(nelx, nely, fixed_dofs, forces, volfrac, plot_every=5, E=1, nu=.3, p=3, tol=.01, maxloops=100):
+def topopt(nelx, nely, fixed_dofs, forces, volfrac, E=1, nu=.3, p=3, tol=.01, maxloops=100):
   '''
   Perform minimum compliance topology optimization on a (nelx, nely) grid given
   - a list of fixed dof numbers
@@ -205,9 +205,6 @@ def topopt(nelx, nely, fixed_dofs, forces, volfrac, plot_every=5, E=1, nu=.3, p=
     dx = np.max(np.abs(x - xold)) # calculate the largest change in value over all cells
     vol = np.sum(x)/(nelx*nely)
     print(f'{i = } {c = :3.3} {vol = :3.3} {dx = :3.3}')
-
-    if i%plot_every == 0:
-      plot(x)
 
     if dx < tol: # stop if the largest change in value over all cells is less than the tolerance
       break
