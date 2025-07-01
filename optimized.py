@@ -1,6 +1,4 @@
-'''
-Highly optimized topopt python code using numpy magic. Comes at a significant cost to readability.
-'''
+# Highly optimized topology in 57 lines of code using numpy magic. Comes at a significant cost to readability.
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.sparse import csc_array
@@ -20,7 +18,7 @@ def topopt(nelx, nely, fixeddofs, forces, volfrac, E=1, nu=.3, p=3, tol=.01, max
   freedofs = np.setdiff1d(np.arange(ndof), fixeddofs)
   f = np.zeros(ndof)
   for force in forces: f[force[0]] = force[1]
-  x = volfrac*np.ones((nely, nelx)) # the next two lines calculate the element stiffnes matrix
+  x = volfrac*np.ones((nely, nelx)) # the next two lines calculate the element stiffness matrix
   k = np.array([1/2 - nu/6, 1/8 + nu/8, -1/4 - nu/12, -1/8 + 3*nu/8, -1/4 + nu/12, -1/8 - nu/8, nu/6, 1/8 - 3*nu/8])
   Ke = np.array([[k[0], k[1], k[2], k[3], k[4], k[5], k[6], k[7]], [k[1], k[0], k[7], k[6], k[5], k[4], k[3], k[2]], [k[2], k[7], k[0], k[5], k[6], k[3], k[4], k[1]], [k[3], k[6], k[5], k[0], k[7], k[2], k[1], k[4]], [k[4], k[5], k[6], k[7], k[0], k[1], k[2], k[3]], [k[5], k[4], k[3], k[2], k[1], k[0], k[7], k[6]], [k[6], k[3], k[4], k[1], k[2], k[7], k[0], k[5]], [k[7], k[2], k[1], k[4], k[3], k[6], k[5], k[0]]])*E/(1 - nu**2)
   elx, ely = np.meshgrid(np.arange(nelx), np.arange(nely)) # from here we set up dofs, which contains the dofs of all elements
