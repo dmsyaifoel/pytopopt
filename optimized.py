@@ -1,4 +1,4 @@
-# Highly optimized topology in 57 lines of code using numpy magic. Comes at a significant cost to readability.
+# Highly optimized topology optimization using 57 lines of numpy magic. Comes at a significant cost to readability.
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.sparse import csc_array
