@@ -1,5 +1,5 @@
 '''
-A full python topology optimization with focus on readability and commenting.
+Python-only topology optimization with focus on readability and commenting. Pretty slow
 '''
 import numpy as np
 import matplotlib.pyplot as plt

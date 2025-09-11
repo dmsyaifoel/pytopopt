@@ -1,14 +1,10 @@
-'''
-Using the adaptive gradient descent approach (rootfinding) to simultaneously move towards multiple, partiallt conflicting, constraints.
-Doesn't work very well right now.
-'''
+
 
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy.sparse import csc_array, coo_array
-from scipy.sparse.linalg import spsolve, factorized
+from scipy.sparse import csc_array
+from scipy.sparse.linalg import spsolve
 from scipy.signal import convolve2d
-from random import randint
 
 scale = 1
 nx, ny = scale*40, scale*30
@@ -17,8 +13,7 @@ E = 1
 r = 1.5
 low = 60
 high = 10*low
-frac = 1
-loops = 500
+loops = 50
 xmin = .01
 p = 3
 vf = .2
@@ -26,7 +21,6 @@ move = .2
 
 def get_element_dofs(elx, ely, nely):
   n1 = (nely + 1)*elx + ely
-  n2 = (nely + 1)*(elx + 1) + ely
   return 2*n1, 2*n1 + 1
 
 fixeddofs = []
@@ -99,12 +93,21 @@ kernel = np.maximum(r - np.sqrt(x_**2 + y_**2), 0)
 d = np.sum(kernel)
 
 x = np.ones((ny, nx))
-dg = np.ones((ny, nx))
-dg_ = dg/np.sum(dg*dg)
+
+def oc(nx, ny, x, volfrac, dcdx, l1=0, l2=1e5, ltol=1e-4, move=.2, xmin=1e-3, power=.5):
+  while l2 - l1 > ltol:
+    lmid = (l2 + l1)/2
+    xnew = x*(np.abs(dcdx)/lmid)**power
+    xnew = np.clip(xnew, x - move, x + move)
+    xnew = np.clip(xnew, xmin, 1)
+    if np.sum(xnew) > volfrac*nx*ny: l1 = lmid
+    else: l2 = lmid
+  return xnew
 
 try:
   for i in range(loops):
-    dx = np.zeros_like(x)
+    dc_ = np.zeros_like(x)
+
     K = csc_array(((Ke[None, :, :]*(x.ravel()**p)[:, None, None]).ravel(), (np.repeat(dofs, 8, axis=1).ravel(), np.tile(dofs, (1, 8)).ravel())), shape=(ndof, ndof))
     U = np.zeros_like(F)
     U[freedofs] = spsolve(K[freedofs, :][:, freedofs], F[freedofs])
@@ -125,18 +128,14 @@ try:
       else: dc = -p*x**(p - 1)*call *1000
 
       dc = convolve2d(x*dc, kernel, mode='same', boundary='symm')/x/d
-      dx += dc/np.sum(dc*dc)*c
+      dc_ += dc
 
-    g = np.sum(x) - vf*nx*ny
-    dx -= dg_*g
-
-    dx = np.clip(dx, -move, move)
-
-    x += dx*frac
-    x = np.clip(x, xmin, 1)
+    x = oc(nx, ny, x, vf, dc_, power=.3)
     print(f'{i} {"".join(hh)} {np.min(x):3.3} {np.max(x):3.3} {np.sum(x)/nx/ny:3.3} {h}')
-    plt.imshow(-x, cmap='gray', interpolation='none')
-    plt.axis('equal')
-    plt.show()
+
 except:
   pass
+
+plt.imshow(-x, cmap='gray', interpolation='none')
+plt.axis('equal')
+plt.show()

@@ -1,9 +1,13 @@
+'''
+Topology optimization using fast numpy operations and the custom adaptive gradient_descent_root algorithm
+Very fast but not very accurate
+'''
+
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.sparse import csc_array
 from scipy.sparse.linalg import spsolve
 from scipy.signal import convolve2d
-from random import random
 def topopt(nx, ny, ctarget, volfrac, fixeddofs, forces, maxloops, r=1.5, p=3, E=1, nu=.3, xmin=1e-3):
   ndof = 2*(nx + 1)*(ny + 1)
   freedofs = np.setdiff1d(np.arange(ndof), fixeddofs)
@@ -46,6 +50,6 @@ def topopt(nx, ny, ctarget, volfrac, fixeddofs, forces, maxloops, r=1.5, p=3, E=
   plt.axis('equal')
   plt.show()
   return x
-nx, ny = 80, 60
+nx, ny = 40, 30
 fixeddofs = np.union1d(np.arange(0, 2*(ny + 1), 2), np.array([2*(nx + 1)*(ny + 1) - 1]))
 x = topopt(nx, ny, 50, .2, fixeddofs, [[1, -1]], 50)

@@ -1,4 +1,4 @@
-import numpy as np
+import numpy as np # the same code as default.py optimized for speed and line count. Completely unreadable
 import matplotlib.pyplot as plt
 from scipy.sparse import csc_array
 from scipy.sparse.linalg import spsolve
