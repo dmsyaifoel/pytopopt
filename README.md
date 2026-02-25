@@ -5,4 +5,4 @@ Dependencies: numpy, scipy, matplotlib
 
 USAGE: each .py file is standalone.
 * default.py is thoroughly commented, but quite slow.
-* optimized.py has been optimized for speed and line count (54) using numpy magic, but is otherwise equivalent.
+* optimized.py has been optimized for speed and line count (46) using numpy magic, but is otherwise equivalent.
