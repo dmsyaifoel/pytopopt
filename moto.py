@@ -5,17 +5,17 @@ from datetime import datetime
 import shutil
 
 
-def split(A): return A[:6, :6], A[6:, :6] #, A[:6, 6:], A[6:, 6:] # comment out last two terms to ignore effect of forces on output
+def split(A): return A[:6, :6], A[6:, :6], A[:6, 6:], A[6:, 6:] # comment out last two terms to ignore effect of forces on output
 
-def cat(a, b): return jnp.concatenate([a, b])
-# def cat(a, b, c, d): return jnp.concatenate([a, b, c, d])
+# def cat(a, b): return jnp.concatenate([a, b])
+def cat(a, b, c, d): return jnp.concatenate([a, b, c, d])
 
-timestamp = datetime.now().strftime('%y%m%d-%H%M%S')
+timestamp = datetime.now().strftime('%Y%m%d-%H%M')
 
 scale = 5
 nx = scale*40
 ny = scale*30
-vf = .5
+vf = .2
 xmin = 1e-3
 
 domain = pym.VoxelDomain(nx, ny)
@@ -38,6 +38,7 @@ with pym.Network() as fn:
   x_filtered.tag = 'Density'
 
   vol = pym.EinSum('i->')(x)
+  volcon = pym.MathExpression(f'inp0 - {vf*nx*ny}')(vol)
 
   pym.PlotDomain(domain, saveto = timestamp + '/')(x_filtered)
 
@@ -58,6 +59,8 @@ with pym.Network() as fn:
   A = np.eye(6)
 
   diags = []
+  diagsedit = []
+  diagsedittrace = []
   smallestdiags = []
   traces = []
   sums = []
@@ -65,31 +68,42 @@ with pym.Network() as fn:
   diagmins = []
   divs = []
 
-  for i, quadrant in enumerate(quadrants):
-    diags.append(pym.EinSum('ij,ij->i')(A, quadrant)) # vectors containing the diagonals
-    smallestdiags.append(pym.SoftMinMax(alpha=-1)(diags[-1])) # smallest of the diagonals (per quadrant)
-    traces.append(pym.EinSum('i->')(diags[-1])) # trace, scalar, sum of diags
-    sums.append(pym.EinSum('ij->')(quadrant)) # total sum of the quadrant
-    offsums.append(pym.MathExpression('inp0 - inp1')(sums[-1], traces[-1])) # sum of the off-diagonals
-    divs.append(pym.MathExpression('inp0/inp1')(traces[-1], offsums[-1])) # division, might be useful
+  diags = [pym.EinSum('ij,ij->i')(A, quadrant)) for quadrant in quadrants] # vectors containing the diagonals
+  traces = [pym.EinSum('ij,ij->')(A, quadrant)) for quadrant in quadrants] # traces (scalars, sums of diags)
+  sums = [pym.EinSum('ij->')(A, quadrant)) for quadrant in quadrants]
+  offsums = [pym.MathExpression('inp0 - inp1')(sums[i], traces[i]) for i in range(len(quadrants))]
 
   alldiags = pym.AutoMod(cat)(*diags) # vector of all diagonals
 
-  smallestofalldiags = pym.SoftMinMax(alpha=-1)(alldiags) # smallest value of all diagonals
+  # smallestalldiags = pym.SoftMinMax(alpha=-10)(alldiags) # smallest value of all diagonals
 
-  add = '1' + ''.join([f'+inp{i}' for i in range(len(quadrants))])
+  add = ''.join([f'+inp{i}' for i in range(len(quadrants))])
   mul = '1' + ''.join([f'*inp{i}' for i in range(len(quadrants))])
 
   alltraces = pym.MathExpression(add)(*traces)
   alloffsums = pym.MathExpression(add)(*offsums)
+  alldivs = pym.MathExpression(add)(*divs)
+  alldet = pym.MathExpression(add)(*diagsedittrace)
+
+  obj = alldivs
+
+  # obj = pym.MathExpression('inp0/inp1')(alloffsums, alltraces)
 
   # obj = pym.MathExpression('inp0/inp1*(inp2+1)')(alloffsums, smallestofalldiags, vol)
-  obj = pym.MathExpression('inp0 - inp1')(alloffsums, traces[-1])
+  # obj = pym.MathExpression('inp0/inp1')(alloffsums, smallestalldiags)
 
+  # aoscon = pym.MathExpression('inp0 - 1e-3')(alloffsums)
+  # sd0con = pym.MathExpression('-inp0 + 2000')(smallestdiags[0])
+  # sd1con = pym.MathExpression('-inp0 + 5000')(smallestdiags[1])
+
+  # obj_con = [vol, sd0con, sd1con]
   obj_con = [obj]
+
+  # obj_con = [alloffsums, volcon, pym.MathExpression('-inp0 + 500')(smallestdiags[-1])]
+
 
   pym.PlotIter()(*obj_con)
 
 shutil.copy2(__file__, timestamp + '/moto.py')
 
-pym.minimize_mma(x, obj_con, )
+pym.minimize_mma(x, obj_con, maxit=1000)
