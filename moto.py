@@ -78,23 +78,10 @@ with pym.Network() as fn:
 
   alltraces = pym.MathExpression(add)(*traces)
   alloffsums = pym.MathExpression(add)(*offsums)
-  # alldivs = pym.MathExpression(add)(*divs)
-  # alldet = pym.MathExpression(add)(*diagsedittrace)
 
-  obj = pym.MathExpression('-inp0')(smallestalldiags)
+  obj = pym.MathExpression('inp0/(inp1 + 1e-9)')(alloffsums, smallestalldiags)
 
-  # obj = pym.MathExpression('inp0/inp1*(inp2+1)')(alloffsums, smallestofalldiags, vol)
-  # obj = pym.MathExpression('inp0/inp1')(alloffsums, smallestalldiags)
-
-  aoscon = pym.MathExpression('inp0 - 400')(alloffsums)
-  # sd0con = pym.MathExpression('-inp0 + 2000')(smallestdiags[0])
-  # sd1con = pym.MathExpression('-inp0 + 5000')(smallestdiags[1])
-
-  # obj_con = [vol, sd0con, sd1con]
-  obj_con = [obj, aoscon]
-
-  # obj_con = [alloffsums, volcon, pym.MathExpression('-inp0 + 500')(smallestdiags[-1])]
-
+  obj_con = [obj]
 
   pym.PlotIter()(*obj_con)
 
