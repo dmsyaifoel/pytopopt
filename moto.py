@@ -1,90 +1,137 @@
-import jax.numpy as jnp
 import numpy as np
-import pymoto as pym
 from datetime import datetime
 import shutil
-
-
-def split(A): return A[:6, :6], A[6:, :6], A[:6, 6:], A[6:, 6:] # comment out last two terms to ignore effect of forces on output
-
-# def cat(a, b): return jnp.concatenate([a, b])
-def cat(a, b, c, d): return jnp.concatenate([a, b, c, d])
+from matplotlib.pyplot import imshow, show
+import pymoto as pym
 
 timestamp = datetime.now().strftime('%Y%m%d-%H%M')
 
-scale = 2
+scale = 4
 nx = scale*40
 ny = scale*30
-vf = .2
+
+vf=.5
+
 xmin = 1e-3
 
 domain = pym.VoxelDomain(nx, ny)
 
-domain2 = pym.VoxelDomain(12, 12)
-
 nodes_left = domain.nodes[0, :].ravel()
 fixed_nodes = np.concatenate([nodes_left[:ny//6], nodes_left[5*ny//6:]])
 fixed_dofs = domain.get_dofnumber(fixed_nodes).ravel()
+
 output_nodes = np.array([nodes_left[2*ny//6], nodes_left[3*ny//6], nodes_left[4*ny//6]])
+
 output_dofs = domain.get_dofnumber(output_nodes).ravel()
+
 nodes_top = domain.nodes[:, 0].ravel()
-input_nodes = np.array([nodes_top[1*nx//3], nodes_top[2*nx//3], nodes_top[nx]])
+input_nodes = np.array([nodes_top[1*nx//3], nodes_top[2*nx//3], nodes_top[nx]])[::-1]
+
 input_dofs = domain.get_dofnumber(input_nodes).ravel()
+
 all_dofs = np.arange(0, 2*domain.nnodes)
 main_dofs = np.concatenate([input_dofs, output_dofs])
 free_dofs = np.setdiff1d(all_dofs, np.concatenate([fixed_dofs, main_dofs]))
 
-x = pym.Signal('x', state=vf*np.ones(domain.nel))
+x = pym.Signal('x', state=xmin*np.ones(domain.nel))
+
+NMIMO = len(output_dofs)
+
+domain2 = pym.VoxelDomain(NMIMO, NMIMO)
+domain3 = pym.VoxelDomain(NMIMO, NMIMO)
+
+
+def objective(C):
+  top = C[:NMIMO, :NMIMO]
+  bot = C[NMIMO:, :NMIMO]
+  top2 = np.array(top)**2
+  bot2 = np.array(bot)**2
+  topsum = np.sum(top2)
+  botsum = np.sum(bot2)
+  toptrace = np.trace(top2)
+  bottrace = np.trace(bot2)
+  topinv = 1/(toptrace + 1e-9)
+  botinv = 1/(bottrace + 1e-9)
+  return topsum - toptrace + botsum - bottrace + topinv + botinv
+
 
 with pym.Network() as fn:
+
   x_filtered = pym.DensityFilter(domain, radius=2)(x)
-  x_filtered.tag = 'Density'
-
-  vol = pym.EinSum('i->')(x)
-  volcon = pym.MathExpression(f'inp0 - {vf*nx*ny}')(vol)
-
+  vol = pym.EinSum('i->')(x_filtered)
+  vol1 = pym.MathExpression(f'inp0/{nx*ny}')(vol)
+  volcon = pym.MathExpression(f'inp0/{nx*ny} - {vf}')(vol)
   pym.PlotDomain(domain, saveto = timestamp + '/domain')(x_filtered)
-
-  x_simp = pym.MathExpression(f'{xmin} + {1 - xmin}*inp0')(x_filtered)
-
+  x_simp = pym.MathExpression(f'{xmin} + {1 - xmin}*inp0**3')(x_filtered)
   K = pym.AssembleStiffness(domain)(x_simp)
-
   K_condensed = pym.StaticCondensation(main=main_dofs, free=free_dofs)(K)
-
   C = pym.Inverse()(K_condensed)
-  C2 = pym.EinSum('ij,ij->ij')(C, C)
 
-  pym.PlotDomain(domain2, saveto = timestamp + '/C2')(C2)
+  print('C', C.state)
 
-  Ctot = pym.EinSum('ij->')(C2)
+  top = C[:NMIMO, :NMIMO]
+  bot = C[NMIMO:, :NMIMO]
 
+  print('top', top.state)
+  print('bot', bot.state)
 
-  quadrants = pym.AutoMod(split)(C2)
+  top2 = pym.EinSum('ij,ij->ij')(top, top)
+  bot2 = pym.EinSum('ij,ij->ij')(bot, bot)
 
-  A = np.eye(6)
+  print('top2', top2.state)
+  print('bot2', bot2.state)
 
-  diags = [pym.EinSum('ij,ij->i')(A, quadrant) for quadrant in quadrants] # vectors containing the diagonals
-  smallestdiags = [pym.KSFunction(rho=-1)(diag) for diag in diags]
-  traces = [pym.EinSum('ij,ij->')(A, quadrant) for quadrant in quadrants] # traces (scalars, sums of diags)
-  sums = [pym.EinSum('ij->')(quadrant) for quadrant in quadrants]
-  offsums = [pym.MathExpression('inp0 - inp1')(sums[i], traces[i]) for i in range(len(quadrants))]
+  pym.PlotDomain(domain2)(top2)
+  pym.PlotDomain(domain3)(bot2)
 
-  alldiags = pym.AutoMod(cat)(*diags) # vector of all diagonals
+  top2sum = pym.EinSum('ij->')(top2)
+  bot2sum = pym.EinSum('ij->')(bot2)
 
-  smallestalldiags = pym.KSFunction(rho=-1)(alldiags) # smallest value of all diagonals
+  topdiag = [top2[i, i] for i in range(NMIMO)]
+  botdiag = [bot2[i, i] for i in range(NMIMO)]
 
-  add = '0' + ''.join([f'+inp{i}' for i in range(len(quadrants))])
-  mul = '1' + ''.join([f'*inp{i}' for i in range(len(quadrants))])
+  smallesttopdiag = pym.MathExpression('(1/inp0 + 1/inp1 + 1/inp2 + 1/inp3 + 1/inp4 + 1/inp5)**-.5')(topdiag[0], topdiag[1], topdiag[2], topdiag[3], topdiag[4], topdiag[5])
 
-  alltraces = pym.MathExpression(add)(*traces)
-  alloffsums = pym.MathExpression(add)(*offsums)
+  topdiag2sum = pym.MathExpression('inp0 + inp1 + inp2 + inp3 + inp4 + inp5')(topdiag[0], topdiag[1], topdiag[2], topdiag[3], topdiag[4], topdiag[5])
 
-  obj = pym.MathExpression('inp0/(inp1 + 1e-9)')(alloffsums, smallestalldiags)
+  largesttopdiag = pym.MathExpression('inp0**.5')(topdiag2sum)
 
-  obj_con = [obj]
+  smallestbotdiag = pym.MathExpression('(1/inp0 + 1/inp1 + 1/inp2 + 1/inp3 + 1/inp4 + 1/inp5)**-.5')(botdiag[0], botdiag[1], botdiag[2], botdiag[3], botdiag[4], botdiag[5])
 
-  pym.PlotIter()(*obj_con)
+  botdiag2sum = pym.MathExpression('inp0 + inp1 + inp2 + inp3 + inp4 + inp5')(botdiag[0], botdiag[1], botdiag[2], botdiag[3], botdiag[4], botdiag[5])
 
-shutil.copy2(__file__, timestamp + '/moto.py')
+  largestbotdiag = pym.MathExpression('inp0**.5')(botdiag2sum)
 
-pym.minimize_mma(x, obj_con, maxit=100)
+  topoff2sum = pym.MathExpression('inp0 - inp1')(top2sum, topdiag2sum)
+  botoff2sum = pym.MathExpression('inp0 - inp1')(bot2sum, botdiag2sum)
+
+  largestoff = pym.MathExpression('(inp0 + inp1)**.5')(topoff2sum, botoff2sum)
+
+  print(largesttopdiag.state, smallesttopdiag.state)
+  print(largestbotdiag.state, smallestbotdiag.state)
+  print(largestoff.state)
+
+  # obj = pym.MathExpression('(inp0/inp1)**2 + (inp2/inp3)**2')(largesttopoff, smallesttopdiag, largestbotoff, smallestbotdiag)
+
+  # obj = pym.MathExpression('(inp0/inp1)**2 + (inp2/inp3)**2')(largesttopoff, smallestbotdiag, largestbotoff, smallestbotdiag)
+
+  # topcon = pym.MathExpression('inp0/inp1 - .1')(largesttopoff, smallesttopdiag)
+  # botcon = pym.MathExpression('inp0/inp1 - .1')(largestbotoff, smallestbotdiag)
+  # diagcon = pym.MathExpression('inp0/inp1 - 1')(largesttopdiag, smallestbotdiag)
+
+  obj = pym.MathExpression('inp0/inp1 + inp2/inp3 + inp4/inp5 + inp6/inp7')(largestoff, smallestbotdiag, largesttopdiag, smallesttopdiag, largestbotdiag, smallestbotdiag, largesttopdiag, smallestbotdiag)
+
+  # ltdcon = pym.MathExpression('inp0 - 100')(largesttopdiag)
+  # stdcon = pym.MathExpression('50 - inp0')(smallesttopdiag)
+
+  # locon = pym.MathExpression('inp0 - 10')(largestoff)
+
+  # lbdcon = pym.MathExpression('inp0 - 100')(largestbotdiag)
+  # sbdcon = pym.MathExpression('50 - inp0')(smallestbotdiag)
+
+  # objcon = [vol1, topcon, botcon, diagcon]
+
+  objcon = [obj]
+  pym.PlotIter()(*objcon)
+pym.minimize_mma(x, objcon, maxit=1000, tolx=0, tolf=0)
+
