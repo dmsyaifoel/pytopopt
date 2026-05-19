@@ -21,11 +21,13 @@ fixed_nodes = np.concatenate([nodes_left[:ny//6], nodes_left[5*ny//6:]])
 fixed_dofs = domain.get_dofnumber(fixed_nodes).ravel()
 
 output_nodes = np.array([nodes_left[2*ny//6], nodes_left[3*ny//6], nodes_left[4*ny//6]])
+# output_nodes = np.array(nodes_left[3*ny//6])
 
 output_dofs = domain.get_dofnumber(output_nodes).ravel()
 
 nodes_top = domain.nodes[:, 0].ravel()
-input_nodes = np.array([nodes_top[1*nx//3], nodes_top[2*nx//3], nodes_top[nx]])[::-1]
+input_nodes = np.array([nodes_top[1*nx//3], nodes_top[2*nx//3], nodes_top[nx]])#[::-1]
+# input_nodes = np.array(nodes_top[nx])
 
 input_dofs = domain.get_dofnumber(input_nodes).ravel()
 
@@ -39,21 +41,6 @@ NMIMO = len(output_dofs)
 
 domain2 = pym.VoxelDomain(NMIMO, NMIMO)
 domain3 = pym.VoxelDomain(NMIMO, NMIMO)
-
-
-def objective(C):
-  top = C[:NMIMO, :NMIMO]
-  bot = C[NMIMO:, :NMIMO]
-  top2 = np.array(top)**2
-  bot2 = np.array(bot)**2
-  topsum = np.sum(top2)
-  botsum = np.sum(bot2)
-  toptrace = np.trace(top2)
-  bottrace = np.trace(bot2)
-  topinv = 1/(toptrace + 1e-9)
-  botinv = 1/(bottrace + 1e-9)
-  return topsum - toptrace + botsum - bottrace + topinv + botinv
-
 
 with pym.Network() as fn:
 
@@ -111,27 +98,10 @@ with pym.Network() as fn:
   print(largestbotdiag.state, smallestbotdiag.state)
   print(largestoff.state)
 
-  # obj = pym.MathExpression('(inp0/inp1)**2 + (inp2/inp3)**2')(largesttopoff, smallesttopdiag, largestbotoff, smallestbotdiag)
+  obj = pym.MathExpression('inp0/inp1')(largestoff, smallestbotdiag)
 
-  # obj = pym.MathExpression('(inp0/inp1)**2 + (inp2/inp3)**2')(largesttopoff, smallestbotdiag, largestbotoff, smallestbotdiag)
-
-  # topcon = pym.MathExpression('inp0/inp1 - .1')(largesttopoff, smallesttopdiag)
-  # botcon = pym.MathExpression('inp0/inp1 - .1')(largestbotoff, smallestbotdiag)
-  # diagcon = pym.MathExpression('inp0/inp1 - 1')(largesttopdiag, smallestbotdiag)
-
-  obj = pym.MathExpression('inp0/inp1 + inp2/inp3 + inp4/inp5 + inp6/inp7')(largestoff, smallestbotdiag, largesttopdiag, smallesttopdiag, largestbotdiag, smallestbotdiag, largesttopdiag, smallestbotdiag)
-
-  # ltdcon = pym.MathExpression('inp0 - 100')(largesttopdiag)
-  # stdcon = pym.MathExpression('50 - inp0')(smallesttopdiag)
-
-  # locon = pym.MathExpression('inp0 - 10')(largestoff)
-
-  # lbdcon = pym.MathExpression('inp0 - 100')(largestbotdiag)
-  # sbdcon = pym.MathExpression('50 - inp0')(smallestbotdiag)
-
-  # objcon = [vol1, topcon, botcon, diagcon]
-
-  objcon = [obj]
+  # objcon = [obj, volcon
+  objcon =[obj]
   pym.PlotIter()(*objcon)
 pym.minimize_mma(x, objcon, maxit=1000, tolx=0, tolf=0)
 
